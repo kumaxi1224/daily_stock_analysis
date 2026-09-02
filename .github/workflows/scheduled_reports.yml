@@ -1,0 +1,79 @@
+name: Daily Stock Analysis & Drive Upload
+on:
+  schedule:
+    - cron: '0 0 * * 1-5'
+    - cron: '0 10 * * 1-5'
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      report_type:
+        description: '手動執行報告類型 (morning / tw_close / us_open)'
+        required: true
+        default: 'tw_close'
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # WIF 免金鑰認證必須開啟此權限
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 使用 Google 官方 Action 進行免金鑰登入
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install google-api-python-client google-auth
+
+      - name: Determine Report Type
+        id: mode
+        run: |
+          HOUR=$(date -u +"%H")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.report_type }}" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -eq 0 ]; then
+            echo "type=morning" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" -eq 10 ]; then
+            echo "type=tw_close" >> $GITHUB_OUTPUT
+          else
+            echo "type=us_open" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Execute Daily Stock Analysis
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REPORT_MODE: ${{ steps.mode.outputs.type }}
+        run: |
+          if [ "$REPORT_MODE" = "morning" ]; then
+            export STOCK_LIST="${{ secrets.STOCK_LIST_US }},2330.TW,2308.TW"
+            python main.py --market-review
+          elif [ "$REPORT_MODE" = "tw_close" ]; then
+            export STOCK_LIST="${{ secrets.STOCK_LIST_TW }}"
+            python main.py
+          else
+            export STOCK_LIST="${{ secrets.STOCK_LIST_US }}"
+            python main.py
+          fi
+
+      - name: Upload Report to Google Drive
+        env:
+          FOLDER_ID: "1b9TR9AyctrxsQ2Fl4MaqjVosiIrHK3o6"
+          REPORT_MODE: ${{ steps.mode.outputs.type }}
+        run: |
+          python scripts/upload_to_gdrive.py
