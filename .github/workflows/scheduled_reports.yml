@@ -14,20 +14,9 @@ on:
 jobs:
   run-analysis:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write  # WIF 免金鑰認證必須開啟此權限
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      # 使用 Google 官方 Action 進行免金鑰登入
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -38,7 +27,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install -r requirements.txt
-          pip install google-api-python-client google-auth
+          pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
 
       - name: Determine Report Type
         id: mode
@@ -74,6 +63,8 @@ jobs:
       - name: Upload Report to Google Drive
         env:
           FOLDER_ID: "1b9TR9AyctrxsQ2Fl4MaqjVosiIrHK3o6"
-          REPORT_MODE: ${{ steps.mode.outputs.type }}
+          GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+          GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
         run: |
           python scripts/upload_to_gdrive.py
