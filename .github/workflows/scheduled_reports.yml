@@ -28,6 +28,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
+          pip install python-docx opencc-python-reimplemented markdown beautifulsoup4
 
       - name: Determine Report Type
         id: mode
@@ -43,21 +44,59 @@ jobs:
             echo "type=us_open" >> $GITHUB_OUTPUT
           fi
 
-      - name: Execute Daily Stock Analysis
+      - name: Execute Daily Stock Analysis in Chunks (分批執行與等待)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           REPORT_MODE: ${{ steps.mode.outputs.type }}
         run: |
           if [ "$REPORT_MODE" = "morning" ]; then
             export STOCK_LIST="${{ secrets.STOCK_LIST_US }},2330.TW,2308.TW"
-            python main.py --stocks "$STOCK_LIST"
           elif [ "$REPORT_MODE" = "tw_close" ]; then
             export STOCK_LIST="${{ secrets.STOCK_LIST_TW }}"
-            python main.py --stocks "$STOCK_LIST"
           else
             export STOCK_LIST="${{ secrets.STOCK_LIST_US }}"
-            python main.py --stocks "$STOCK_LIST"
           fi
+          
+          # 將字串轉換為陣列
+          IFS=',' read -r -a STOCKS <<< "$STOCK_LIST"
+          TOTAL_STOCKS=${#STOCKS[@]}
+          CHUNK_SIZE=3
+          WAIT_TIME=1200 # 20分鐘 (20 * 60 = 1200秒)
+          
+          mkdir -p combined_reports
+          rm -f reports/report_*.md # 清除舊報告
+          
+          for (( i=0; i<$TOTAL_STOCKS; i+=CHUNK_SIZE )); do
+            CHUNK=("${STOCKS[@]:i:CHUNK_SIZE}")
+            CHUNK_STR=$(IFS=, ; echo "${CHUNK[*]}")
+            
+            echo "=========================================="
+            echo "正在分析第 $((i+1)) 到 $((i+${#CHUNK[@]})) 檔股票: $CHUNK_STR"
+            echo "=========================================="
+            
+            python main.py --stocks "$CHUNK_STR"
+            
+            # 將剛產生的報告移到暫存區並依照順序命名
+            LATEST_REPORT=$(ls -t reports/report_*.md 2>/dev/null | head -1)
+            if [ -n "$LATEST_REPORT" ]; then
+              cp "$LATEST_REPORT" "combined_reports/chunk_$(printf "%03d" $i).md"
+              rm "$LATEST_REPORT" # 刪除原檔案以便下一輪產生新的
+            fi
+            
+            # 如果還沒到最後一組，就等待 20 分鐘
+            if [ $((i + CHUNK_SIZE)) -lt $TOTAL_STOCKS ]; then
+              echo "等待 20 分鐘以避免觸發 Gemini API 限制..."
+              sleep $WAIT_TIME
+            fi
+          done
+          
+          # 將所有小報告合併成一個大報告
+          cat combined_reports/chunk_*.md > reports/final_combined_report.md
+          echo "所有股票分析完成並合併！"
+
+      - name: Convert & Format to Traditional Chinese Word Doc
+        run: |
+          python scripts/format_to_word.py
 
       - name: Upload Report to Google Drive
         env:
