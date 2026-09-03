@@ -46,7 +46,6 @@ jobs:
       - name: Execute Daily Stock Analysis
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REPORT_MODE: ${{ steps.mode.outputs.type }}
         run: |
           if [ "$REPORT_MODE" = "morning" ]; then
@@ -54,23 +53,11 @@ jobs:
             python main.py --stocks "$STOCK_LIST"
           elif [ "$REPORT_MODE" = "tw_close" ]; then
             export STOCK_LIST="${{ secrets.STOCK_LIST_TW }}"
-            # 強制加上 --stocks 參數，覆蓋預設的 A 股大盤
             python main.py --stocks "$STOCK_LIST"
           else
             export STOCK_LIST="${{ secrets.STOCK_LIST_US }}"
             python main.py --stocks "$STOCK_LIST"
           fi
-
-      - name: Convert Markdown to Word (.docx)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc
-          # 尋找 reports 資料夾下的 md 檔，將其轉換為 docx
-          for file in reports/*.md; do
-            if [ -f "$file" ]; then
-              pandoc "$file" -o "${file%.md}.docx"
-            fi
-          done
 
       - name: Upload Report to Google Drive
         env:
