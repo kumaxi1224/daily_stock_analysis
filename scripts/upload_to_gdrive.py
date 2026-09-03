@@ -1,5 +1,4 @@
 import os
-import glob
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -17,12 +16,10 @@ creds = Credentials(
 
 service = build('drive', 'v3', credentials=creds)
 
-# ⚠️ 改為抓取最新的繁體中文 docx 檔案
-report_files = sorted(glob.glob("reports/report_*.docx"), key=os.path.getmtime, reverse=True)
+target_file = "reports/Daily_Stock_Analysis_Report.docx"
 
-if report_files:
-    target_file = report_files[0]
-    filename = os.path.basename(target_file).replace('.docx', '')
+if os.path.exists(target_file):
+    filename = "今日台股決策儀表板分析_繁體版" 
     
     # 指定上傳格式為 Word，讓 Google 自動轉為可編輯的 Google Docs
     media = MediaFileUpload(target_file, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', resumable=True)
