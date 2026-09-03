@@ -17,18 +17,16 @@ creds = Credentials(
 
 service = build('drive', 'v3', credentials=creds)
 
-# 抓取系統原生產生的 Markdown 檔案
-report_files = sorted(glob.glob("reports/*.md"), key=os.path.getmtime, reverse=True)
+# ⚠️ 關鍵修改：強制只抓取 "report_" 開頭的檔案，過滤掉沒用的 "market_review_"
+report_files = sorted(glob.glob("reports/report_*.md"), key=os.path.getmtime, reverse=True)
 
 if report_files:
     target_file = report_files[0]
-    # 去除附檔名，作為 Google 文件的優雅標題
     filename = os.path.basename(target_file).replace('.md', '')
     
-    # 宣告這是一份文字檔
     media = MediaFileUpload(target_file, mimetype='text/plain', resumable=True)
     
-    # 關鍵：告訴 Google 雲端硬碟強制將它轉換為可編輯的「Google 文件 (Google Docs)」
+    # 轉換為原生的 Google Docs
     file_metadata = {
         'name': filename,
         'parents': [folder_id],
@@ -38,4 +36,4 @@ if report_files:
     uploaded = service.files().create(body=file_metadata, media_body=media, fields='id, name').execute()
     print(f"Uploaded {uploaded.get('name')} (ID: {uploaded.get('id')}) to Drive as a native Google Doc.")
 else:
-    print("No report files found to upload.")
+    print("No valid stock report files found to upload.")
