@@ -17,16 +17,16 @@ creds = Credentials(
 
 service = build('drive', 'v3', credentials=creds)
 
-# ⚠️ 關鍵修改：強制只抓取 "report_" 開頭的檔案，過滤掉沒用的 "market_review_"
-report_files = sorted(glob.glob("reports/report_*.md"), key=os.path.getmtime, reverse=True)
+# ⚠️ 改為抓取最新的繁體中文 docx 檔案
+report_files = sorted(glob.glob("reports/report_*.docx"), key=os.path.getmtime, reverse=True)
 
 if report_files:
     target_file = report_files[0]
-    filename = os.path.basename(target_file).replace('.md', '')
+    filename = os.path.basename(target_file).replace('.docx', '')
     
-    media = MediaFileUpload(target_file, mimetype='text/plain', resumable=True)
+    # 指定上傳格式為 Word，讓 Google 自動轉為可編輯的 Google Docs
+    media = MediaFileUpload(target_file, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', resumable=True)
     
-    # 轉換為原生的 Google Docs
     file_metadata = {
         'name': filename,
         'parents': [folder_id],
@@ -36,4 +36,4 @@ if report_files:
     uploaded = service.files().create(body=file_metadata, media_body=media, fields='id, name').execute()
     print(f"Uploaded {uploaded.get('name')} (ID: {uploaded.get('id')}) to Drive as a native Google Doc.")
 else:
-    print("No valid stock report files found to upload.")
+    print("No docx report files found to upload.")
