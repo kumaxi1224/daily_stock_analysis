@@ -47,6 +47,9 @@ jobs:
       - name: Execute Daily Stock Analysis in Chunks (分批執行與等待)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANSPIRE_API_KEYS: ${{ secrets.ANSPIRE_API_KEYS }}
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
           REPORT_MODE: ${{ steps.mode.outputs.type }}
         run: |
           if [ "$REPORT_MODE" = "morning" ]; then
@@ -85,7 +88,7 @@ jobs:
             
             # 如果還沒到最後一組，就等待 20 分鐘
             if [ $((i + CHUNK_SIZE)) -lt $TOTAL_STOCKS ]; then
-              echo "等待 20 分鐘以避免觸發 Gemini API 限制..."
+              echo "等待 20 分鐘以避免觸發 API 限制..."
               sleep $WAIT_TIME
             fi
           done
